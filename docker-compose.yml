@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+
+  # ── FRONT-END (Nginx sirve la página HTML) ───────────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: fullstack_frontend
+    ports:
+      - "8081:80"          # Acceder en http://localhost:8080
+    networks:
+      - red_interna
+    depends_on:
+      - backend
+    restart: on-failure
+
+  # ── BACK-END (API Node.js + Express) ─────────────────────────────────────
+  backend:
+    build: ./backend
+    container_name: fullstack_backend
+    ports:
+      - "3000:3000"        # API accesible en http://localhost:3000
+    environment:
+      - DB_HOST=db
+      - DB_USER=appuser
+      - DB_PASSWORD=apppassword
+      - DB_NAME=appdb
+      - PORT=3000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - red_interna
+    restart: on-failure
+
+  # ── BASE DE DATOS (MySQL) ─────────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: fullstack_db
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=appdb
+      - MYSQL_USER=appuser
+      - MYSQL_PASSWORD=apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - datos_mysql:/var/lib/mysql                              # Volumen persistente
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql # Inicialización automática
+    networks:
+      - red_interna
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "appuser", "-papppassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ── RED INTERNA ──────────────────────────────────────────────────────────────
+networks:
+  red_interna:
+    driver: bridge
+
+# ── VOLUMEN PERSISTENTE ───────────────────────────────────────────────────────
+volumes:
+  datos_mysql:
+    driver: local
