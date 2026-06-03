@@ -1,0 +1,78 @@
+# ─── Workflow de CI/CD con GitHub Actions ─────────────────────────────────────
+# Este archivo automatiza la construcción, prueba y validación del stack
+# completo (Front-End, Back-End y Base de Datos) cada vez que se sube
+# un cambio a la rama principal del repositorio.
+
+name: CI/CD - Docker Compose Fullstack
+
+# ── Cuándo se ejecuta ─────────────────────────────────────────────────────────
+on:
+  push:
+    branches:
+      - master        # Se activa al hacer push a la rama master
+  pull_request:
+    branches:
+      - master        # También se activa en Pull Requests a master
+
+# ── Trabajos del workflow ─────────────────────────────────────────────────────
+jobs:
+  build-and-test:
+    name: Construir y Probar el Stack
+    runs-on: ubuntu-latest    # GitHub ejecuta esto en una máquina Linux gratuita
+
+    steps:
+
+      # 1. Descargar el repositorio
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      # 2. Verificar versión de Docker y Docker Compose
+      - name: Verificar Docker
+        run: |
+          docker --version
+          docker compose version
+
+      # 3. Construir los servicios con Docker Compose
+      - name: Construir servicios
+        run: docker compose build
+
+      # 4. Levantar el stack en segundo plano (-d = detached)
+      - name: Levantar el stack
+        run: docker compose up -d
+
+      # 5. Esperar a que los servicios estén listos (30 segundos)
+      - name: Esperar a que los servicios inicien
+        run: |
+          echo "Esperando 30 segundos para que MySQL y el backend inicien..."
+          sleep 30
+
+      # 6. Mostrar contenedores activos
+      - name: Verificar contenedores activos
+        run: docker compose ps
+
+      # 7. Probar que el Back-End responda correctamente
+      - name: Probar API - Estado general
+        run: |
+          echo "Probando endpoint raíz de la API..."
+          curl -f http://localhost:3000/ || exit 1
+
+      # 8. Probar conexión de la API con la base de datos
+      - name: Probar API - Conexión con MySQL
+        run: |
+          echo "Probando conexión entre API y MySQL..."
+          curl -f http://localhost:3000/api/db-test || exit 1
+
+      # 9. Probar endpoint de usuarios
+      - name: Probar API - Usuarios
+        run: |
+          echo "Probando endpoint de usuarios..."
+          curl -f http://localhost:3000/api/usuarios || exit 1
+
+      # 10. Mostrar logs de todos los contenedores
+      - name: Revisar logs del stack
+        run: docker compose logs
+
+      # 11. Apagar el stack al terminar
+      - name: Apagar el stack
+        run: docker compose down
+        if: always()    # Se ejecuta siempre, incluso si hubo errores
